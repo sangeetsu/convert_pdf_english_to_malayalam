@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>English to Malayalam PDF Translator</title>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 20px;
+      background: #f0f4f8;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #1e3a5f, #2d6a9f);
+      color: #fff;
+      padding: 28px 20px 22px;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    header p {
+      margin-top: 8px;
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* ── Main card ───────────────────────────────────────────────────── */
+    main {
+      width: 100%;
+      max-width: 760px;
+      margin: 36px auto 60px;
+      padding: 0 16px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px 44px;
+    }
+
+    /* ── Step labels ─────────────────────────────────────────────────── */
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: 32px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      background: #2d6a9f;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+    .step-body { flex: 1; padding-top: 6px; }
+    .step-body label {
+      display: block;
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+
+    /* ── Drop zone ───────────────────────────────────────────────────── */
+    #drop-zone {
+      border: 3px dashed #2d6a9f;
+      border-radius: 12px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      background: #f7fafd;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      background: #e3f0fb;
+      border-color: #1e3a5f;
+    }
+    #drop-zone .icon { font-size: 3rem; display: block; margin-bottom: 10px; }
+    #drop-zone .hint { font-size: 1rem; color: #555; margin-top: 8px; }
+    #file-input { display: none; }
+
+    /* File chosen state */
+    #file-chosen {
+      margin-top: 12px;
+      font-size: 1rem;
+      color: #1e7e34;
+      font-weight: 600;
+      display: none;
+    }
+
+    /* ── Translate button ────────────────────────────────────────────── */
+    #translate-btn {
+      width: 100%;
+      padding: 20px;
+      background: #1e7e34;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.4px;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 6px;
+    }
+    #translate-btn:hover:not(:disabled) {
+      background: #155724;
+      transform: translateY(-1px);
+    }
+    #translate-btn:disabled {
+      background: #8a9ba8;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── Progress section ────────────────────────────────────────────── */
+    #progress-section {
+      display: none;
+      margin-top: 32px;
+      padding: 24px;
+      background: #f0f7ff;
+      border-radius: 12px;
+      border-left: 6px solid #2d6a9f;
+    }
+    #status-message {
+      font-size: 1.1rem;
+      color: #1a1a2e;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .progress-bar-wrap {
+      height: 22px;
+      background: #cde0f5;
+      border-radius: 11px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2d6a9f, #1e3a5f);
+      border-radius: 11px;
+      transition: width 0.5s ease;
+    }
+    #progress-pct {
+      text-align: right;
+      font-size: 0.95rem;
+      color: #2d6a9f;
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    /* ── Download section ────────────────────────────────────────────── */
+    #download-section { display: none; margin-top: 28px; text-align: center; }
+    #download-btn {
+      display: inline-block;
+      padding: 20px 48px;
+      background: #e67e00;
+      color: #fff;
+      border-radius: 12px;
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+      letter-spacing: 0.4px;
+    }
+    #download-btn:hover {
+      background: #b86200;
+      transform: translateY(-1px);
+    }
+    #download-hint {
+      margin-top: 12px;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    /* ── Error ───────────────────────────────────────────────────────── */
+    #error-section {
+      display: none;
+      margin-top: 28px;
+      padding: 20px;
+      background: #fff0f0;
+      border-radius: 12px;
+      border-left: 6px solid #c0392b;
+      color: #c0392b;
+      font-size: 1.05rem;
+    }
+
+    /* ── Tips ────────────────────────────────────────────────────────── */
+    .tips {
+      margin-top: 36px;
+      background: #fffbf0;
+      border: 1px solid #ffd97d;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .tips h3 { font-size: 1.1rem; margin-bottom: 10px; }
+    .tips li { margin-left: 22px; margin-bottom: 6px; font-size: 0.97rem; color: #444; }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      margin-top: auto;
+      width: 100%;
+      text-align: center;
+      padding: 16px;
+      font-size: 0.85rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📄 English → Malayalam PDF Translator</h1>
+  <p>Translate any English PDF into Malayalam — simple, fast, and free</p>
+</header>
+
+<main>
+  <div class="card">
+
+    <!-- Step 1: Choose file -->
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <label for="file-input">Choose your English PDF file</label>
+
+        <div id="drop-zone" role="button" tabindex="0"
+             aria-label="Click or drag a PDF file here">
+          <span class="icon">📂</span>
+          <strong>Click here to select your PDF</strong>
+          <div class="hint">or drag and drop the file onto this box</div>
+        </div>
+        <input type="file" id="file-input" accept=".pdf" />
+        <div id="file-chosen">✅ <span id="file-name-display"></span></div>
+      </div>
+    </div>
+
+    <!-- Step 2: Translate -->
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <label>Start the translation</label>
+        <button id="translate-btn" disabled onclick="startTranslation()">
+          🌐 Translate to Malayalam
+        </button>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-section">
+      <div id="status-message">Starting…</div>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar"></div>
+      </div>
+      <div id="progress-pct">0%</div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-section"></div>
+
+    <!-- Step 3: Download -->
+    <div id="download-section">
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <label>Download your translated PDF</label>
+          <a id="download-btn" href="#" download>
+            ⬇️ Download Malayalam PDF
+          </a>
+          <p id="download-hint">Your file will be saved to your Downloads folder.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="tips">
+      <h3>💡 Helpful tips</h3>
+      <ul>
+        <li>Translation time depends on file length — a 10-page document takes about 1–2 minutes.</li>
+        <li>This tool works best with text-based PDFs. Scanned photos of documents cannot be translated.</li>
+        <li>You can translate another file by refreshing the page.</li>
+        <li>Your files are not stored on the internet — everything stays on this computer.</li>
+      </ul>
+    </div>
+
+  </div>
+</main>
+
+<footer>Running locally on your computer &nbsp;|&nbsp; Files are kept private</footer>
+
+<script>
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const fileChosen = document.getElementById('file-chosen');
+  const fileNameDisplay = document.getElementById('file-name-display');
+  const translateBtn = document.getElementById('translate-btn');
+  const progressSection = document.getElementById('progress-section');
+  const statusMessage = document.getElementById('status-message');
+  const progressBar = document.getElementById('progress-bar');
+  const progressPct = document.getElementById('progress-pct');
+  const downloadSection = document.getElementById('download-section');
+  const downloadBtn = document.getElementById('download-btn');
+  const errorSection = document.getElementById('error-section');
+
+  let selectedFile = null;
+
+  // ── File selection ──────────────────────────────────────────────────────────
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) setFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.toLowerCase().endsWith('.pdf')) {
+      setFile(file);
+    } else {
+      showError('Please drop a PDF file.');
+    }
+  });
+
+  function setFile(file) {
+    selectedFile = file;
+    fileNameDisplay.textContent = file.name;
+    fileChosen.style.display = 'block';
+    dropZone.querySelector('strong').textContent = 'File selected ✓ (click to change)';
+    translateBtn.disabled = false;
+    errorSection.style.display = 'none';
+    downloadSection.style.display = 'none';
+  }
+
+  // ── Translation ─────────────────────────────────────────────────────────────
+  function startTranslation() {
+    if (!selectedFile) return;
+
+    translateBtn.disabled = true;
+    progressSection.style.display = 'block';
+    downloadSection.style.display = 'none';
+    errorSection.style.display = 'none';
+    setProgress(5, 'Uploading your file…');
+
+    const formData = new FormData();
+    formData.append('pdf_file', selectedFile);
+
+    fetch('/translate', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { showError(data.error); return; }
+        pollStatus(data.job_id, 1000);
+      })
+      .catch(() => showError('Could not connect to the translator. Is the app running?'));
+  }
+
+  // ── Polling (exponential backoff: 1s → 2s → 4s → max 8s) ──────────────────
+  function pollStatus(jobId, delay) {
+    delay = delay || 1000;
+    fetch('/status/' + jobId)
+      .then(r => r.json())
+      .then(data => {
+        setProgress(data.progress, data.message);
+        if (data.status === 'done') {
+          downloadBtn.href = '/download/' + jobId;
+          downloadSection.style.display = 'block';
+          translateBtn.disabled = false;
+        } else if (data.status === 'error') {
+          showError(data.message);
+          translateBtn.disabled = false;
+        } else {
+          const nextDelay = Math.min(delay * 2, 8000);
+          setTimeout(() => pollStatus(jobId, nextDelay), delay);
+        }
+      })
+      .catch(() => setTimeout(() => pollStatus(jobId, Math.min(delay * 2, 8000)), delay));
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function setProgress(pct, msg) {
+    progressBar.style.width = pct + '%';
+    progressPct.textContent = pct + '%';
+    statusMessage.textContent = msg;
+  }
+
+  function showError(msg) {
+    progressSection.style.display = 'none';
+    errorSection.style.display = 'block';
+    errorSection.textContent = '⚠️ ' + msg;
+    translateBtn.disabled = !selectedFile;
+  }
+</script>
+</body>
+</html>
