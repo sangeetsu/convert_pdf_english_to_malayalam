@@ -182,6 +182,19 @@ class GoogleTranslateEngine(TranslateEngine):
 
 
 # ── 2. IndicTrans2 (AI4Bharat — local model, best Indic quality) ──────────────
+def _patch_transformers_compat() -> None:
+    """IndicTransToolkit imports PreTrainedTokenizerBase from
+    transformers.tokenization_utils, but transformers>=4.x moved it to
+    tokenization_utils_base.  Inject a shim so the old import path works."""
+    try:
+        import transformers.tokenization_utils as _tu
+        if not hasattr(_tu, "PreTrainedTokenizerBase"):
+            from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+            _tu.PreTrainedTokenizerBase = PreTrainedTokenizerBase
+    except Exception:
+        pass  # best-effort; the real ImportError will surface naturally
+
+
 class IndicTrans2Engine(TranslateEngine):
     name        = "indictrans2"
     label       = "IndicTrans2 (AI4Bharat)"
@@ -198,6 +211,7 @@ class IndicTrans2Engine(TranslateEngine):
         if cls._model is not None:
             return
         import torch
+        _patch_transformers_compat()
         from IndicTransToolkit import IndicProcessor
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
@@ -216,6 +230,7 @@ class IndicTrans2Engine(TranslateEngine):
         try:
             import torch  # noqa: F401
             from transformers import AutoModelForSeq2SeqLM  # noqa: F401
+            _patch_transformers_compat()
             from IndicTransToolkit import IndicProcessor  # noqa: F401
             return True, ""
         except ImportError as e:
@@ -1019,10 +1034,19 @@ def start_translation():
     engine_name = request.form.get("engine", "google")
     api_key     = request.form.get("api_key", "")
 
-    # Quick check: if engine needs API key, validate it's provided
+    # Quick check: if engine needs API key, validate it's available from any source
+    # (form input, env var, OR secrets/ file — let the engine resolve it)
     engine_cls = ENGINES.get(engine_name, GoogleTranslateEngine)
-    if engine_cls.needs_api_key and not (api_key or os.environ.get(engine_cls.api_key_env, "")):
-        return jsonify(error=f"{engine_cls.label} requires an API key."), 400
+    if engine_cls.needs_api_key:
+        resolved_key = api_key or os.environ.get(engine_cls.api_key_env, "")
+        if not resolved_key:
+            # Try instantiating the engine so it can load from secrets/
+            try:
+                resolved_key = engine_cls(api_key="").api_key
+            except Exception:
+                resolved_key = ""
+        if not resolved_key:
+            return jsonify(error=f"{engine_cls.label} requires an API key."), 400
 
     job_id  = str(uuid.uuid4())
     ext     = file.filename.rsplit(".", 1)[-1].lower()
