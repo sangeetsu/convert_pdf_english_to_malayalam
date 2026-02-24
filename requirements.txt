@@ -8,3 +8,7 @@ beautifulsoup4>=4.12
 lxml>=5.0
 sarvamai              # Sarvam AI official SDK
 google-genai          # For Gemini engine (free API key at aistudio.google.com)
+
+# Local AI engine (NLLB-200) — optional but recommended; ~2.3 GB model download on first use
+# pip install torch transformers sentencepiece
+# sentencepiece        # required tokenizer for NLLB-200
