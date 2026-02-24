@@ -6,9 +6,5 @@ requests>=2.31
 python-docx>=1.1
 beautifulsoup4>=4.12
 lxml>=5.0
-
-# Optional engines (uncomment or install separately as needed):
-# google-genai             # For Gemini engine (free API key at aistudio.google.com)
-# indictranstoolkit        # For IndicTrans2 engine (best Indian language quality)
-# torch                    # Required by IndicTrans2
-# transformers>=4.51       # Required by IndicTrans2
+sarvamai              # Sarvam AI official SDK
+google-genai          # For Gemini engine (free API key at aistudio.google.com)

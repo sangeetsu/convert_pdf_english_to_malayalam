@@ -253,41 +253,60 @@ class IndicTrans2Engine(TranslateEngine):
 
 
 # ── 3. Sarvam AI (Indian-language API, free tier) ─────────────────────────────
+SECRETS_DIR = os.path.join(BASE_DIR, "secrets")
+
+
+def _load_secret(filename: str, env_var: str = "") -> str:
+    """Return the first non-empty line from secrets/<filename>, or env var."""
+    path = os.path.join(SECRETS_DIR, filename)
+    if os.path.exists(path):
+        with open(path) as fh:
+            val = fh.read().strip().splitlines()[0].strip()
+        if val:
+            return val
+    return os.environ.get(env_var, "") if env_var else ""
+
+
 class SarvamEngine(TranslateEngine):
     name        = "sarvam"
     label       = "Sarvam AI"
     needs_api_key = True
     api_key_env = "SARVAM_API_KEY"
-    description = "High-quality Indian language API. Free tier available."
+    description = "Best-in-class Indian language API. Free tier available."
     setup_hint  = "Get a free API key at https://www.sarvam.ai"
 
     def __init__(self, api_key: str = ""):
-        self.api_key = api_key or os.environ.get("SARVAM_API_KEY", "")
+        self.api_key = (
+            api_key
+            or _load_secret("sarvam_api_1.txt", "SARVAM_API_KEY")
+        )
+
+    @classmethod
+    def check_available(cls) -> tuple[bool, str]:
+        try:
+            from sarvamai import SarvamAI  # noqa: F401
+            return True, ""
+        except ImportError:
+            return False, "Missing package. Run:  pip install sarvamai"
 
     def translate(self, text: str) -> str:
         if _skip(text):
             return text
         try:
-            resp = requests.post(
-                "https://api.sarvam.ai/translate",
-                headers={
-                    "Content-Type": "application/json",
-                    "api-subscription-key": self.api_key,
-                },
-                json={
-                    "input": text[:CHUNK_SIZE],
-                    "source_language_code": "en-IN",
-                    "target_language_code": "ml-IN",
-                    "mode": "formal",
-                    "model": "mayura:v1",
-                    "enable_preprocessing": True,
-                },
-                timeout=30,
+            from sarvamai import SarvamAI
+            client = SarvamAI(api_subscription_key=self.api_key)
+            response = client.text.translate(
+                input=text[:CHUNK_SIZE],
+                source_language_code="en-IN",
+                target_language_code="ml-IN",
+                speaker_gender="Male",
+                mode="formal",
+                model="mayura:v1",
+                numerals_format="international",
             )
-            resp.raise_for_status()
-            data = resp.json()
             time.sleep(0.3)
-            return data.get("translated_text", text)
+            # SDK returns an object; the translated text is in .translated_text
+            return getattr(response, "translated_text", None) or text
         except Exception as e:
             print(f"Sarvam error: {e}")
             return text
