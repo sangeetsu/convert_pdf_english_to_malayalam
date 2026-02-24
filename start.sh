@@ -30,13 +30,15 @@ echo " Found Python $PYTHON_VERSION"
 #  This avoids the "externally managed environment" error on
 #  Ubuntu 23.04+ where system pip refuses to install packages
 #  outside a venv.
-if [ ! -d "$VENV_DIR" ]; then
+if [ ! -f "$VENV_DIR/bin/activate" ]; then
+    # Remove any broken/incomplete venv directory before recreating
+    [ -d "$VENV_DIR" ] && rm -rf "$VENV_DIR"
     echo " Creating virtual environment (first run only)…"
-    if ! python3 -m venv "$VENV_DIR"; then
+    if ! python3 -m venv "$VENV_DIR" 2>/dev/null; then
         echo ""
         echo " ERROR: Could not create a virtual environment."
-        echo " Please install python3-venv:"
-        echo "   sudo apt install -y python3-venv"
+        echo " Please install python3-venv and try again:"
+        echo "   sudo apt update && sudo apt install -y python3-venv"
         echo ""
         exit 1
     fi

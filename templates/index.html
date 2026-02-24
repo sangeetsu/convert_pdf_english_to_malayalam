@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>English to Malayalam PDF Translator</title>
+  <title>English to Malayalam Document Translator</title>
   <style>
     /* ── Reset & base ───────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -146,8 +146,15 @@
     #status-message {
       font-size: 1.1rem;
       color: #1a1a2e;
-      margin-bottom: 16px;
+      margin-bottom: 4px;
       line-height: 1.5;
+    }
+    #status-sub {
+      font-size: 0.92rem;
+      color: #2d6a9f;
+      margin-bottom: 14px;
+      min-height: 1.2em;
+      font-variant-numeric: tabular-nums;
     }
     .progress-bar-wrap {
       height: 22px;
@@ -160,14 +167,20 @@
       width: 0%;
       background: linear-gradient(90deg, #2d6a9f, #1e3a5f);
       border-radius: 11px;
-      transition: width 0.5s ease;
+      transition: width 0.8s ease;
     }
     #progress-pct {
-      text-align: right;
+      display: flex;
+      justify-content: space-between;
       font-size: 0.95rem;
       color: #2d6a9f;
       margin-top: 6px;
       font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    #time-remaining {
+      color: #555;
+      font-weight: 500;
     }
 
     /* ── Download section ────────────────────────────────────────────── */
@@ -205,7 +218,97 @@
       color: #c0392b;
       font-size: 1.05rem;
     }
+    /* ── Format selector ─────────────────────────────────────────────────── */
+    .format-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .format-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: 2px solid #cde0f5;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: border-color 0.2s, background 0.2s;
+      background: #f7fafd;
+    }
+    .format-option:has(input:checked) {
+      border-color: #2d6a9f;
+      background: #e3f0fb;
+    }
+    .format-option input { accent-color: #2d6a9f; }
 
+    /* ── Engine selector ──────────────────────────────────────────────── */
+    .engine-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .engine-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 14px 16px;
+      border: 2px solid #cde0f5;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: #f7fafd;
+    }
+    .engine-card:has(input:checked) {
+      border-color: #2d6a9f;
+      background: #e3f0fb;
+    }
+    .engine-card.unavailable {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .engine-card input[type="radio"] { accent-color: #2d6a9f; margin-top: 3px; }
+    .engine-card .engine-info { flex: 1; }
+    .engine-card .engine-name { font-weight: 700; font-size: 1.05rem; }
+    .engine-card .engine-desc { font-size: 0.88rem; color: #555; margin-top: 2px; }
+    .engine-card .engine-hint { font-size: 0.82rem; color: #888; margin-top: 2px; font-style: italic; }
+    .engine-card .engine-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .badge-fast   { background: #d4edda; color: #155724; }
+    .badge-best   { background: #fff3cd; color: #856404; }
+    .badge-cloud  { background: #e2e3f1; color: #3b3d8e; }
+    .badge-llm    { background: #f0d9ff; color: #6a1b9a; }
+
+    .api-key-row {
+      margin-top: 8px;
+      display: none;
+      gap: 8px;
+      align-items: center;
+    }
+    .api-key-row.visible { display: flex; }
+    .api-key-row input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 2px solid #cde0f5;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: monospace;
+    }
+    .api-key-row input:focus { border-color: #2d6a9f; outline: none; }
+    .api-key-row .key-hint {
+      font-size: 0.8rem;
+      color: #888;
+    }
     /* ── Tips ────────────────────────────────────────────────────────── */
     .tips {
       margin-top: 36px;
@@ -231,8 +334,8 @@
 <body>
 
 <header>
-  <h1>📄 English → Malayalam PDF Translator</h1>
-  <p>Translate any English PDF into Malayalam — simple, fast, and free</p>
+  <h1>📄 English → Malayalam Document Translator</h1>
+  <p>Translate structured documents to Malayalam — headings, tables, lists and code blocks preserved</p>
 </header>
 
 <main>
@@ -242,50 +345,94 @@
     <div class="step">
       <div class="step-num">1</div>
       <div class="step-body">
-        <label for="file-input">Choose your English PDF file</label>
+        <label for="file-input">Choose your English document</label>
 
         <div id="drop-zone" role="button" tabindex="0"
-             aria-label="Click or drag a PDF file here">
+             aria-label="Click or drag a document here">
           <span class="icon">📂</span>
-          <strong>Click here to select your PDF</strong>
-          <div class="hint">or drag and drop the file onto this box</div>
+          <strong>Click here to select your file</strong>
+          <div class="hint">PDF · DOCX · HTML · Markdown · TXT &nbsp;|&nbsp; or drag and drop</div>
         </div>
-        <input type="file" id="file-input" accept=".pdf" />
+        <input type="file" id="file-input" accept=".pdf,.docx,.txt,.html,.htm,.md" />
         <div id="file-chosen">✅ <span id="file-name-display"></span></div>
       </div>
     </div>
 
-    <!-- Step 2: Translate -->
+    <!-- Step 1.5: Translation engine -->
     <div class="step">
       <div class="step-num">2</div>
       <div class="step-body">
+        <label>Choose translation engine</label>
+        <div class="engine-grid" id="engine-grid">
+          <!-- Engines will be populated dynamically from /engines -->
+          <div style="color:#888; font-size:0.9rem;">Loading engines…</div>
+        </div>
+        <div class="api-key-row" id="api-key-row">
+          <input type="password" id="api-key-input" placeholder="Paste your API key here" autocomplete="off" />
+          <span class="key-hint" id="api-key-hint"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Output format -->
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <label>Choose output format</label>
+        <div class="format-row">
+          <label class="format-option">
+            <input type="radio" name="output_format" value="pdf" checked />
+            📄 PDF
+          </label>
+          <label class="format-option">
+            <input type="radio" name="output_format" value="docx" />
+            📝 DOCX (Word) — better for tables &amp; headings
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Translate -->
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
         <label>Start the translation</label>
-        <button id="translate-btn" disabled onclick="startTranslation()">
-          🌐 Translate to Malayalam
-        </button>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <button id="translate-btn" disabled onclick="startTranslation(false)">
+            🌐 Translate to Malayalam
+          </button>
+          <button id="preview-btn" disabled onclick="startTranslation(true)"
+                  style="background:linear-gradient(135deg,#4a90a4,#3d7a91); font-size:0.95em;">
+            🔍 Test First Page
+          </button>
+        </div>
+        <div style="margin-top:6px; font-size:0.82em; color:#666;">
+          Use <em>Test First Page</em> to preview page 1 before translating the entire document.
+        </div>
       </div>
     </div>
 
     <!-- Progress -->
     <div id="progress-section">
       <div id="status-message">Starting…</div>
+      <div id="status-sub"></div>
       <div class="progress-bar-wrap">
         <div id="progress-bar"></div>
       </div>
-      <div id="progress-pct">0%</div>
+      <div id="progress-pct"><span id="pct-label">0%</span><span id="time-remaining"></span></div>
     </div>
 
     <!-- Error -->
     <div id="error-section"></div>
 
-    <!-- Step 3: Download -->
+    <!-- Step 5: Download -->
     <div id="download-section">
       <div class="step">
-        <div class="step-num">3</div>
+        <div class="step-num">5</div>
         <div class="step-body">
-          <label>Download your translated PDF</label>
+          <label>Download your translated document</label>
           <a id="download-btn" href="#" download>
-            ⬇️ Download Malayalam PDF
+            ⬇️ Download Malayalam Document
           </a>
           <p id="download-hint">Your file will be saved to your Downloads folder.</p>
         </div>
@@ -296,10 +443,12 @@
     <div class="tips">
       <h3>💡 Helpful tips</h3>
       <ul>
-        <li>Translation time depends on file length — a 10-page document takes about 1–2 minutes.</li>
-        <li>This tool works best with text-based PDFs. Scanned photos of documents cannot be translated.</li>
-        <li>You can translate another file by refreshing the page.</li>
-        <li>Your files are not stored on the internet — everything stays on this computer.</li>
+        <li><strong>Translation engines:</strong> Google Translate needs no setup. For better Malayalam quality, try IndicTrans2 (local AI) or Sarvam/Gemini (free API key).</li>
+        <li><strong>Supported formats:</strong> PDF (text-based), Word DOCX, HTML, Markdown (.md), plain TXT.</li>
+        <li><strong>Structure is preserved:</strong> headings, tables, bullet lists, and code blocks are kept intact in the translation.</li>
+        <li><strong>Output format:</strong> choose DOCX (Word) for the best table and heading fidelity; PDF for a ready-to-print result.</li>
+        <li>Scanned image PDFs cannot be translated — the PDF must contain selectable text.</li>
+        <li>Translation time depends on file length and engine — IndicTrans2 is slower on CPU but highest quality.</li>
       </ul>
     </div>
 
@@ -316,13 +465,84 @@
   const translateBtn = document.getElementById('translate-btn');
   const progressSection = document.getElementById('progress-section');
   const statusMessage = document.getElementById('status-message');
+  const statusSub = document.getElementById('status-sub');
   const progressBar = document.getElementById('progress-bar');
-  const progressPct = document.getElementById('progress-pct');
   const downloadSection = document.getElementById('download-section');
   const downloadBtn = document.getElementById('download-btn');
   const errorSection = document.getElementById('error-section');
+  const engineGrid = document.getElementById('engine-grid');
+  const apiKeyRow  = document.getElementById('api-key-row');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyHint  = document.getElementById('api-key-hint');
+
+  const pctLabel      = document.getElementById('pct-label');
+  const timeRemaining = document.getElementById('time-remaining');
 
   let selectedFile = null;
+  let engines = [];
+  let selectedEngine = 'google';
+
+  // ETA tracking state — reset each job
+  let etaStartTime = null;   // Date.now() when translation phase begins
+  let etaSamples   = [];     // [{t, done, total}] from poll responses
+
+  // ── Load engines on page load ───────────────────────────────────────────────
+  const BADGE_MAP = {
+    google:      ['⚡ Fast',     'badge-fast'],
+    indictrans2: ['🏆 Best',     'badge-best'],
+    sarvam:      ['☁️ Cloud',    'badge-cloud'],
+    gemini:      ['🧠 LLM',      'badge-llm'],
+  };
+
+  fetch('/engines')
+    .then(r => r.json())
+    .then(data => {
+      engines = data;
+      engineGrid.innerHTML = '';
+      data.forEach((eng, idx) => {
+        const badge = BADGE_MAP[eng.name] || ['', ''];
+        const disabled = !eng.available ? 'unavailable' : '';
+        const checked  = eng.name === 'google' ? 'checked' : '';
+
+        const card = document.createElement('label');
+        card.className = 'engine-card ' + disabled;
+        card.innerHTML = `
+          <input type="radio" name="engine" value="${eng.name}" ${checked}
+                 ${!eng.available ? 'disabled' : ''} />
+          <div class="engine-info">
+            <span class="engine-name">${eng.label}</span>
+            <span class="engine-badge ${badge[1]}">${badge[0]}</span>
+            <div class="engine-desc">${eng.description}</div>
+            ${eng.setup_hint ? '<div class="engine-hint">' + eng.setup_hint + '</div>' : ''}
+            ${eng.error ? '<div class="engine-hint" style="color:#c00">' + eng.error + '</div>' : ''}
+          </div>
+        `;
+        engineGrid.appendChild(card);
+      });
+
+      // Listen for engine changes
+      engineGrid.addEventListener('change', onEngineChange);
+    })
+    .catch(() => {
+      engineGrid.innerHTML = '<div style="color:#c00">Could not load engines</div>';
+    });
+
+  function onEngineChange() {
+    const sel = document.querySelector('input[name="engine"]:checked');
+    if (!sel) return;
+    selectedEngine = sel.value;
+    const eng = engines.find(e => e.name === selectedEngine);
+    if (eng && eng.needs_api_key) {
+      apiKeyRow.classList.add('visible');
+      apiKeyHint.textContent = eng.setup_hint || '';
+      apiKeyInput.placeholder = eng.api_key_env
+        ? `Paste ${eng.label} API key (or set ${eng.api_key_env} env var)`
+        : `Paste ${eng.label} API key`;
+    } else {
+      apiKeyRow.classList.remove('visible');
+      apiKeyInput.value = '';
+    }
+  }
 
   // ── File selection ──────────────────────────────────────────────────────────
   dropZone.addEventListener('click', () => fileInput.click());
@@ -334,76 +554,145 @@
 
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+  const ACCEPTED_EXTS = ['pdf','docx','txt','html','htm','md'];
+
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file && file.name.toLowerCase().endsWith('.pdf')) {
+    if (file && ACCEPTED_EXTS.includes(file.name.split('.').pop().toLowerCase())) {
       setFile(file);
     } else {
-      showError('Please drop a PDF file.');
+      showError('Unsupported file type. Please drop a PDF, DOCX, HTML, MD, or TXT file.');
     }
   });
 
   function setFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!ACCEPTED_EXTS.includes(ext)) {
+      showError('Unsupported file type. Please select a PDF, DOCX, HTML, MD, or TXT file.');
+      return;
+    }
     selectedFile = file;
     fileNameDisplay.textContent = file.name;
     fileChosen.style.display = 'block';
     dropZone.querySelector('strong').textContent = 'File selected ✓ (click to change)';
     translateBtn.disabled = false;
+    document.getElementById('preview-btn').disabled = false;
     errorSection.style.display = 'none';
     downloadSection.style.display = 'none';
   }
 
   // ── Translation ─────────────────────────────────────────────────────────────
-  function startTranslation() {
+  function startTranslation(preview) {
     if (!selectedFile) return;
 
     translateBtn.disabled = true;
+    document.getElementById('preview-btn').disabled = true;
     progressSection.style.display = 'block';
     downloadSection.style.display = 'none';
     errorSection.style.display = 'none';
-    setProgress(5, 'Uploading your file…');
+    etaStartTime = null;
+    etaSamples = [];
+    timeRemaining.textContent = '';
 
+    const engLabel = (engines.find(e => e.name === selectedEngine) || {}).label || selectedEngine;
+    setProgress(5, preview
+      ? `Uploading file (preview – page 1 only, ${engLabel})…`
+      : `Uploading your file (${engLabel})…`);
+
+    const outputFormat = document.querySelector('input[name="output_format"]:checked').value;
     const formData = new FormData();
     formData.append('pdf_file', selectedFile);
+    formData.append('output_format', outputFormat);
+    formData.append('engine', selectedEngine);
+    if (apiKeyInput.value.trim()) formData.append('api_key', apiKeyInput.value.trim());
+    if (preview) formData.append('preview', '1');
 
     fetch('/translate', { method: 'POST', body: formData })
       .then(r => r.json())
       .then(data => {
         if (data.error) { showError(data.error); return; }
-        pollStatus(data.job_id, 1000);
+        pollStatus(data.job_id);
       })
       .catch(() => showError('Could not connect to the translator. Is the app running?'));
   }
 
-  // ── Polling (exponential backoff: 1s → 2s → 4s → max 8s) ──────────────────
-  function pollStatus(jobId, delay) {
-    delay = delay || 1000;
+  // ── Polling: fixed 1.2 s interval while running ─────────────────────────
+  function pollStatus(jobId) {
     fetch('/status/' + jobId)
       .then(r => r.json())
       .then(data => {
-        setProgress(data.progress, data.message);
+        setProgress(data.progress, data.message, data.trans_done, data.trans_total, data.elapsed_sec);
         if (data.status === 'done') {
           downloadBtn.href = '/download/' + jobId;
+          const fmt = (data.output_format || 'pdf').toUpperCase();
+          downloadBtn.textContent = '⬇️ Download Malayalam ' + fmt;
           downloadSection.style.display = 'block';
           translateBtn.disabled = false;
+          document.getElementById('preview-btn').disabled = false;
+          timeRemaining.textContent = '';
         } else if (data.status === 'error') {
           showError(data.message);
           translateBtn.disabled = false;
+          document.getElementById('preview-btn').disabled = false;
         } else {
-          const nextDelay = Math.min(delay * 2, 8000);
-          setTimeout(() => pollStatus(jobId, nextDelay), delay);
+          setTimeout(() => pollStatus(jobId), 1200);
         }
       })
-      .catch(() => setTimeout(() => pollStatus(jobId, Math.min(delay * 2, 8000)), delay));
+      .catch(() => setTimeout(() => pollStatus(jobId), 2000));
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
-  function setProgress(pct, msg) {
+  function formatTime(sec) {
+    if (sec < 0 || !isFinite(sec)) return '';
+    sec = Math.round(sec);
+    if (sec < 60) return sec + 's';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+  }
+
+  function setProgress(pct, msg, done, total, elapsedSec) {
     progressBar.style.width = pct + '%';
-    progressPct.textContent = pct + '%';
-    statusMessage.textContent = msg;
+    pctLabel.textContent = pct + '%';
+
+    // Split "Translating section X of Y [...] — Z% done" into two lines
+    const secMatch = msg && msg.match(/^(Translating section \d+ of \d+)(.*)$/);
+    if (secMatch) {
+      statusMessage.textContent = secMatch[1];
+      statusSub.textContent = secMatch[2].replace(/^\s*[—\-]\s*/, '');
+    } else {
+      statusMessage.textContent = msg || '';
+      statusSub.textContent = '';
+    }
+
+    // ── ETA calculation ──────────────────────────────────────────────────────
+    if (done > 0 && total > 0 && elapsedSec > 0) {
+      // Record sample
+      etaSamples.push({ t: elapsedSec, done, total });
+      // Use a sliding window of last 8 samples for a smooth rate
+      const window = etaSamples.slice(-8);
+      if (window.length >= 2) {
+        const first = window[0], last = window[window.length - 1];
+        const dt = last.t - first.t;
+        const dd = last.done - first.done;
+        if (dd > 0 && dt > 0) {
+          const rate = dd / dt;            // sections per second
+          const remaining = total - done;
+          const etaSec = remaining / rate;
+          timeRemaining.textContent = '⏱ ~' + formatTime(etaSec) + ' remaining';
+        }
+      } else if (done >= 1) {
+        // Rough initial estimate from total elapsed
+        const rate = done / elapsedSec;
+        const remaining = total - done;
+        const etaSec = remaining / rate;
+        timeRemaining.textContent = '⏱ ~' + formatTime(etaSec) + ' remaining';
+      }
+    } else if (pct >= 100) {
+      timeRemaining.textContent = '';
+    }
   }
 
   function showError(msg) {
@@ -411,6 +700,7 @@
     errorSection.style.display = 'block';
     errorSection.textContent = '⚠️ ' + msg;
     translateBtn.disabled = !selectedFile;
+    document.getElementById('preview-btn').disabled = !selectedFile;
   }
 </script>
 </body>
