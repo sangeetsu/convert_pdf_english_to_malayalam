@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd /home/sangeetsu/Downloads/convert_pdf_english_to_malayalam && source \\.venv/bin/activate && python3 -c \"\nimport pdfplumber, json\n\npdf = pdfplumber\\.open\\('examples/Paper IV -Disease, disease control corrected notes final-1_230109_150921\\.pdf'\\)\nprint\\(f'Pages: \\{len\\(pdf\\.pages\\)\\}'\\)\n\n# Examine first 3 pages in detail\nfor i in range\\(min\\(3, len\\(pdf\\.pages\\)\\)\\):\n    page = pdf\\.pages\\[i\\]\n    print\\(f'\\\\n=== PAGE \\{i\\+1\\} ==='\\)\n    \n    # Tables\n    tables = page\\.find_tables\\(\\)\n    print\\(f'Tables found: \\{len\\(tables\\)\\}'\\)\n    for ti, t in enumerate\\(tables\\):\n        raw = t\\.extract\\(\\)\n        print\\(f'  Table \\{ti\\}: \\{len\\(raw\\)\\} rows x \\{len\\(raw\\[0\\]\\) if raw else 0\\} cols'\\)\n        for ri, row in enumerate\\(raw\\[:3\\]\\):\n            print\\(f'    Row \\{ri\\}: \\{\\[c\\[:40\\] if c else \\\\\"\\\\\" for c in row\\]\\}'\\)\n    \n    # Text sample\n    text = page\\.extract_text\\(\\) or ''\n    lines = text\\.split\\('\\\\n'\\)\n    print\\(f'Text lines: \\{len\\(lines\\)\\}'\\)\n    for l in lines\\[:15\\]:\n        print\\(f'  \\| \\{l\\[:100\\]\\}'\\)\n    print\\('  \\.\\.\\.'\\)\n\npdf\\.close\\(\\)\n\" 2>&1 \\| head -120\n$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

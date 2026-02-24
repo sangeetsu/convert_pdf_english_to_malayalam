@@ -183,16 +183,86 @@ class GoogleTranslateEngine(TranslateEngine):
 
 # ── 2. IndicTrans2 (AI4Bharat — local model, best Indic quality) ──────────────
 def _patch_transformers_compat() -> None:
-    """IndicTransToolkit imports PreTrainedTokenizerBase from
-    transformers.tokenization_utils, but transformers>=4.x moved it to
-    tokenization_utils_base.  Inject a shim so the old import path works."""
+    """Fix IndicTransToolkit compatibility with transformers>=5.
+
+    Patches three issues in the cached HuggingFace model files:
+    1. collator.py: PreTrainedTokenizerBase moved to tokenization_utils_base
+    2. tokenization_indictrans.py: _special_tokens_map must exist before super()
+    3. modeling_indictrans.py: tie_weights() must accept **kwargs
+    """
     try:
         import transformers.tokenization_utils as _tu
         if not hasattr(_tu, "PreTrainedTokenizerBase"):
             from transformers.tokenization_utils_base import PreTrainedTokenizerBase
             _tu.PreTrainedTokenizerBase = PreTrainedTokenizerBase
     except Exception:
-        pass  # best-effort; the real ImportError will surface naturally
+        pass
+
+    try:
+        import pathlib, importlib.util
+        spec = importlib.util.find_spec("IndicTransToolkit")
+        if spec and spec.origin:
+            pkg_dir = pathlib.Path(spec.origin).parent
+
+            # Fix 1: collator.py
+            collator = pkg_dir / "collator.py"
+            if collator.exists():
+                src = collator.read_text()
+                fixed = src.replace(
+                    "from transformers.tokenization_utils import PreTrainedTokenizerBase",
+                    "from transformers.tokenization_utils_base import PreTrainedTokenizerBase",
+                )
+                if fixed != src:
+                    collator.write_text(fixed)
+                    for pyc in pkg_dir.glob("__pycache__/collator*.pyc"):
+                        pyc.unlink(missing_ok=True)
+
+        hf_modules = pathlib.Path.home() / ".cache" / "huggingface" / "modules" / "transformers_modules"
+
+        # Fix 2: tokenization_indictrans.py — pre-init _special_tokens_map
+        for tok_file in hf_modules.glob("ai4bharat/*/*/tokenization_indictrans.py"):
+            src = tok_file.read_text()
+            old = "        self.src_vocab_fp = src_vocab_fp"
+            new = (
+                "        if not hasattr(self, '_special_tokens_map'):\n"
+                "            self._special_tokens_map = {'bos_token': None, 'eos_token': None, "
+                "'unk_token': None, 'sep_token': None, 'pad_token': None, "
+                "'cls_token': None, 'mask_token': None, 'additional_special_tokens': []}\n"
+                "        self.src_vocab_fp = src_vocab_fp"
+            )
+            if old in src and new not in src:
+                tok_file.write_text(src.replace(old, new, 1))
+                for pyc in tok_file.parent.glob("__pycache__/tokenization_indictrans*.pyc"):
+                    pyc.unlink(missing_ok=True)
+
+        # Fix 3: modeling_indictrans.py — multiple transformers>=5 renames
+        for mod_file in hf_modules.glob("ai4bharat/*/*/modeling_indictrans.py"):
+            src = mod_file.read_text()
+            changed = False
+            # tie_weights must accept **kwargs
+            if "    def tie_weights(self):" in src:
+                src = src.replace("    def tie_weights(self):", "    def tie_weights(self, **kwargs):", 1)
+                changed = True
+            # _tie_or_clone_weights and _tie_weights are gone; directly assign weight
+            for old_body, new_body in [
+                ("            self._tie_or_clone_weights(self.model.decoder.embed_tokens, self.lm_head)",
+                 "            self.lm_head.weight = self.model.decoder.embed_tokens.weight"),
+                ("            self._tie_weights(self.model.decoder.embed_tokens, self.lm_head)",
+                 "            self.lm_head.weight = self.model.decoder.embed_tokens.weight"),
+            ]:
+                if old_body in src:
+                    src = src.replace(old_body, new_body, 1)
+                    changed = True
+            if changed:
+                mod_file.write_text(src)
+                for pyc in mod_file.parent.glob("__pycache__/modeling_indictrans*.pyc"):
+                    pyc.unlink(missing_ok=True)
+
+    except Exception:
+        pass
+
+
+_patch_transformers_compat()   # run once at import time
 
 
 class IndicTrans2Engine(TranslateEngine):
@@ -201,28 +271,31 @@ class IndicTrans2Engine(TranslateEngine):
     description = "Best quality for Indian languages. Runs a local AI model."
     setup_hint  = "First run downloads ~800 MB model. Needs: pip install indictranstoolkit torch transformers"
 
-    _model = None
+    _model     = None
     _tokenizer = None
     _processor = None
-    _device = None
+    _device    = None
 
     @classmethod
     def _load(cls):
         if cls._model is not None:
             return
         import torch
-        _patch_transformers_compat()
-        from IndicTransToolkit import IndicProcessor
+        # Import directly from the submodule to avoid the broken __init__.py
+        from IndicTransToolkit.processor import IndicProcessor
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-        hf_token = _load_secret("read_hface.txt", "HF_TOKEN")
+        hf_token   = _load_secret("read_hface.txt", "HF_TOKEN")
         cls._device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_name = "ai4bharat/indictrans2-en-indic-dist-200M"
+        dtype       = torch.float16 if cls._device == "cuda" else torch.float32
+        model_name  = "ai4bharat/indictrans2-en-indic-dist-200M"
+
         cls._tokenizer = AutoTokenizer.from_pretrained(
             model_name, trust_remote_code=True, token=hf_token or None,
         )
         cls._model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_name, trust_remote_code=True, token=hf_token or None,
+            model_name, trust_remote_code=True,
+            token=hf_token or None, dtype=dtype,
         ).to(cls._device)
         cls._processor = IndicProcessor(inference=True)
 
@@ -231,8 +304,7 @@ class IndicTrans2Engine(TranslateEngine):
         try:
             import torch  # noqa: F401
             from transformers import AutoModelForSeq2SeqLM  # noqa: F401
-            _patch_transformers_compat()
-            from IndicTransToolkit import IndicProcessor  # noqa: F401
+            from IndicTransToolkit.processor import IndicProcessor  # noqa: F401
             return True, ""
         except ImportError as e:
             return False, (
@@ -250,12 +322,14 @@ class IndicTrans2Engine(TranslateEngine):
                 [text], src_lang="eng_Latn", tgt_lang="mal_Mlym",
             )
             inputs = self._tokenizer(
-                batch, padding="longest", truncation=True,
-                max_length=256, return_tensors="pt",
+                batch, truncation=True, padding="longest",
+                return_tensors="pt", return_attention_mask=True,
             ).to(self._device)
-            with torch.inference_mode():
+            with torch.no_grad():
                 outputs = self._model.generate(
-                    **inputs, num_beams=5, num_return_sequences=1, max_length=256,
+                    **inputs,
+                    use_cache=False, min_length=0, max_length=256,
+                    num_beams=5, num_return_sequences=1,
                 )
             decoded = self._tokenizer.batch_decode(
                 outputs, skip_special_tokens=True,

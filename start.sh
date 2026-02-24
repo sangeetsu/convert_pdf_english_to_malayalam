@@ -28,7 +28,7 @@ echo " Found Python $PYTHON_VERSION"
 
 # ── 2. Create a virtual environment (first run only) ──────────
 #  This avoids the "externally managed environment" error on
-#  Ubuntu 23.04+ where system pip refuses to install packages
+#  Ubuntu 23.04+ where system pip refuses to install packages.venv/bin/huggingface-cli login
 #  outside a venv.
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
     # Remove any broken/incomplete venv directory before recreating
