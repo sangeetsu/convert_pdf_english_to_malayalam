@@ -8,6 +8,7 @@ import os
 import re
 import uuid
 import time
+import logging
 import threading
 import requests
 from dataclasses import dataclass, field
@@ -53,6 +54,12 @@ for folder in (UPLOAD_FOLDER, OUTPUT_FOLDER, FONT_DIR):
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+
+# Suppress per-request log spam from the /status polling endpoint
+class _NoStatusPollFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/status/" not in record.getMessage()
+logging.getLogger("werkzeug").addFilter(_NoStatusPollFilter())
 
 # In-memory job store: job_id -> {status, progress, message, output_file}
 jobs: dict[str, dict] = {}
@@ -258,6 +265,16 @@ def _patch_transformers_compat() -> None:
                 for pyc in mod_file.parent.glob("__pycache__/modeling_indictrans*.pyc"):
                     pyc.unlink(missing_ok=True)
 
+    except Exception:
+        pass
+
+    # Fix 4: transformers.modeling_attn_mask_utils calls
+    #   logger.warning_once(DEPRECATION_MESSAGE, FutureWarning)
+    # where DEPRECATION_MESSAGE has no % placeholder but FutureWarning is passed
+    # as a format arg → Python logging raises TypeError inside emit().
+    # Silence that module's logger to stop the spurious "--- Logging error ---" output.
+    try:
+        logging.getLogger("transformers.modeling_attn_mask_utils").setLevel(logging.ERROR)
     except Exception:
         pass
 
