@@ -181,45 +181,63 @@ class GoogleTranslateEngine(TranslateEngine):
             return text
 
 
-# ── 2. NLLB-200 (Meta — local model, no account required) ────────────────────
-class IndicTrans2Engine(TranslateEngine):
-    """Uses facebook/nllb-200-distilled-600M — non-gated, no HuggingFace
-    account needed, supports Malayalam (mal_Mlym) out of the box."""
-    name        = "indictrans2"
-    label       = "Local AI (NLLB-200)"
-    description = "Offline AI translation. No account or API key needed. First run downloads ~2.3 GB model."
-    setup_hint  = "Needs: pip install torch transformers sentencepiece"
+# ── 2. IndicTrans2 (AI4Bharat — local model, best Indic quality) ──────────────
+def _patch_transformers_compat() -> None:
+    """IndicTransToolkit imports PreTrainedTokenizerBase from
+    transformers.tokenization_utils, but transformers>=4.x moved it to
+    tokenization_utils_base.  Inject a shim so the old import path works."""
+    try:
+        import transformers.tokenization_utils as _tu
+        if not hasattr(_tu, "PreTrainedTokenizerBase"):
+            from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+            _tu.PreTrainedTokenizerBase = PreTrainedTokenizerBase
+    except Exception:
+        pass  # best-effort; the real ImportError will surface naturally
 
-    _pipe   = None
+
+class IndicTrans2Engine(TranslateEngine):
+    name        = "indictrans2"
+    label       = "IndicTrans2 (AI4Bharat)"
+    description = "Best quality for Indian languages. Runs a local AI model."
+    setup_hint  = "First run downloads ~800 MB model. Needs: pip install indictranstoolkit torch transformers"
+
+    _model = None
+    _tokenizer = None
+    _processor = None
     _device = None
 
     @classmethod
     def _load(cls):
-        if cls._pipe is not None:
+        if cls._model is not None:
             return
         import torch
-        from transformers import pipeline as hf_pipeline
-        cls._device = 0 if torch.cuda.is_available() else -1
-        cls._pipe = hf_pipeline(
-            "translation",
-            model="facebook/nllb-200-distilled-600M",
-            src_lang="eng_Latn",
-            tgt_lang="mal_Mlym",
-            device=cls._device,
-            max_length=512,
+        _patch_transformers_compat()
+        from IndicTransToolkit import IndicProcessor
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+        hf_token = _load_secret("read_hface.txt", "HF_TOKEN")
+        cls._device = "cuda" if torch.cuda.is_available() else "cpu"
+        model_name = "ai4bharat/indictrans2-en-indic-dist-200M"
+        cls._tokenizer = AutoTokenizer.from_pretrained(
+            model_name, trust_remote_code=True, token=hf_token or None,
         )
+        cls._model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_name, trust_remote_code=True, token=hf_token or None,
+        ).to(cls._device)
+        cls._processor = IndicProcessor(inference=True)
 
     @classmethod
     def check_available(cls) -> tuple[bool, str]:
         try:
-            import torch          # noqa: F401
-            import sentencepiece  # noqa: F401
-            from transformers import pipeline as _p  # noqa: F401
+            import torch  # noqa: F401
+            from transformers import AutoModelForSeq2SeqLM  # noqa: F401
+            _patch_transformers_compat()
+            from IndicTransToolkit import IndicProcessor  # noqa: F401
             return True, ""
         except ImportError as e:
             return False, (
                 f"Missing package: {e.name}. "
-                "Run:  pip install torch transformers sentencepiece"
+                "Run:  pip install indictranstoolkit torch transformers"
             )
 
     def translate(self, text: str) -> str:
@@ -227,10 +245,26 @@ class IndicTrans2Engine(TranslateEngine):
             return text
         try:
             self._load()
-            result = self._pipe(text[:CHUNK_SIZE])
-            return result[0]["translation_text"] if result else text
+            import torch
+            batch = self._processor.preprocess_batch(
+                [text], src_lang="eng_Latn", tgt_lang="mal_Mlym",
+            )
+            inputs = self._tokenizer(
+                batch, padding="longest", truncation=True,
+                max_length=256, return_tensors="pt",
+            ).to(self._device)
+            with torch.inference_mode():
+                outputs = self._model.generate(
+                    **inputs, num_beams=5, num_return_sequences=1, max_length=256,
+                )
+            decoded = self._tokenizer.batch_decode(
+                outputs, skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+            )
+            result = self._processor.postprocess_batch(decoded, lang="mal_Mlym")
+            return result[0] if result else text
         except Exception as e:
-            print(f"NLLB-200 error: {e}")
+            print(f"IndicTrans2 error: {e}")
             return text
 
 
